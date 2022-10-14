@@ -3,6 +3,8 @@ body {
 	line-height: 1.333;
 	margin: 1rem auto 0 auto;
 	max-width: 800px;
+	padding-left: 1rem;
+	padding-right: 1rem;
 }
 
 button {

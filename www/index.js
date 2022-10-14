@@ -46,15 +46,36 @@ function removeConnectionElements(elements) {
 // CONNECTION
 // -----
 
-function createRtcPeerConnection(elements) {
+function createRtcPeerConnection(elements, to) {
 	const rtcPeerConnection = new RTCPeerConnection({});
 
 	rtcPeerConnection.addEventListener('icecandidate', (event) => {
-		rtcPeerConnection.addIceCandidate(event.candidate);
+		console.log('RTC PEER CONNECTION ON ICE CANDIDATE', event.candidate);
+
+		// rtcPeerConnection.addIceCandidate(event.candidate);
+
+		webSocket.send(JSON.stringify({
+			to,
+			type: 'Candidate',
+			// candidate: !event.candidate ? null : {
+			// 	candidate: event.candidate.candidate,
+			// 	sdpMid: event.candidate.sdpMid,
+			// 	sdpMLineIndex: event.candidate.sdpMLineIndex
+			// }
+			candidate: event.candidate
+		}));
+	});
+
+	rtcPeerConnection.addEventListener('iceconnectionstatechange', (event) => {
+		console.log('RTC PEER CONNECTION ON ICE CONNECTION STATE CHANGE', event.streams);
 	});
 
 	rtcPeerConnection.addEventListener('track', (event) => {
-		elements.video.srcObject = event.streams[0];
+		console.log('RTC PEER CONNECTION ON TRACK', event.streams);
+
+		if (elements.video.srcObject !== event.streams[0]) {
+			elements.video.srcObject = event.streams[0];
+		}
 	});
 
 	for (const track of localStream.getTracks()) {
@@ -164,6 +185,11 @@ startButton.addEventListener('click', () => {
 					case 'Answer': {
 						AddAnswerToConnectionElements(clients[message.from].elements, message.answer);
 						clients[message.from].rtcPeerConnection.setRemoteDescription(message.answer);
+						break;
+					}
+
+					case 'Candidate': {
+						clients[message.from].rtcPeerConnection.addIceCandidate(message.candidate);
 						break;
 					}
 
