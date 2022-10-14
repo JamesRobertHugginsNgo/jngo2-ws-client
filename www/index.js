@@ -49,12 +49,12 @@ function createRtcPeerConnection(elements, to) {
 		webSocket.send(JSON.stringify({
 			to,
 			type: 'Candidate',
-			// candidate: !event.candidate ? null : {
-			// 	candidate: event.candidate.candidate,
-			// 	sdpMid: event.candidate.sdpMid,
-			// 	sdpMLineIndex: event.candidate.sdpMLineIndex
-			// }
-			candidate: event.candidate
+			candidate: !event.candidate ? null : {
+				candidate: event.candidate.candidate,
+				sdpMid: event.candidate.sdpMid,
+				sdpMLineIndex: event.candidate.sdpMLineIndex
+			}
+			// candidate: event.candidate
 		}));
 	});
 
