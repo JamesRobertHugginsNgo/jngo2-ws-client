@@ -81,21 +81,9 @@ startButton.addEventListener('click', () => {
 
 	startButton.setAttribute('disabled', '');
 
-	if (pingInterval) {
-		clearInterval(pingInterval);
-		pingInterval = null;
-	}
-
 	if (webSocket) {
 		webSocket.close();
 		webSocket = null;
-	}
-
-	if (localStream) {
-		for (const track of localStream.getTracks()) {
-			track.stop();
-		}
-		localStream = null;
 	}
 
 	navigator.mediaDevices.getUserMedia({ audio: false, video: true }).then((stream) => {
@@ -201,6 +189,11 @@ startButton.addEventListener('click', () => {
 				pingInterval = null;
 			}
 
+			for (const track of localStream.getTracks()) {
+				track.stop();
+			}
+			localStream = null;
+
 			for (const key in clients) {
 				removeConnectionElements(clients[key].elements);
 				delete clients[key];
@@ -227,9 +220,4 @@ endButton.addEventListener('click', () => {
 
 	webSocket.close();
 	webSocket = null;
-
-	for (const track of localStream.getTracks()) {
-		track.stop();
-	}
-	localStream = null;
 });
