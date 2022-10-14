@@ -120,7 +120,7 @@ startButton.addEventListener('click', () => {
 					case 'Add': {
 						const elements = createConnectionElements(message.from);
 
-						const rtcPeerConnection = createRtcPeerConnection(elements);
+						const rtcPeerConnection = createRtcPeerConnection(elements, message.from);
 						rtcPeerConnection.createOffer({
 							offerToReceiveAudio: 1,
 							offerToReceiveVideo: 1
@@ -146,7 +146,7 @@ startButton.addEventListener('click', () => {
 					}
 
 					case 'Offer': {
-						const elements = createConnectionElements(message.from);
+						const elements = createConnectionElements(message.from, message.from);
 						elements.metaParagraph.append(`Offer: ${message.offer}`);
 
 						const rtcPeerConnection = createRtcPeerConnection(elements);
