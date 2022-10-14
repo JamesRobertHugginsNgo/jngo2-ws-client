@@ -21,7 +21,7 @@ function clearLogsDiv() {
 // ---
 
 startButton.addEventListener('click', () => {
-	log && log('START BUTTON', 'ON', 'CLICK');
+	log && log('START BUTTON', 'ON CLICK');
 
 	startButton.setAttribute('disabled', '');
 
@@ -34,12 +34,8 @@ startButton.addEventListener('click', () => {
 			const message = JSON.parse(event.data);
 			const type = message.type;
 
-			log && log('WEB SOCKET', 'ONMESSAGE', 'type', type);
-
 			switch (type) {
 				case 'Add Log': {
-					log && log('WEB SOCKET', 'ONMESSAGE', 'Add Log');
-
 					const args = message.args;
 
 					const paragraph = logsDiv.appendChild(document.createElement('p'));
@@ -67,7 +63,7 @@ startButton.addEventListener('click', () => {
 // ---
 
 endButton.addEventListener('click', () => {
-	log && log('END BUTTON', 'ON', 'CLICK');
+	log && log('END BUTTON', 'ON CLICK');
 
 	webSocket.close();
 	clearLogsDiv();

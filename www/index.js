@@ -1,97 +1,94 @@
-const log = console.log.bind(console);
-
+const localVideo = document.getElementById('local');
 const startButton = document.getElementById('start');
 const endButton = document.getElementById('end');
-const localVideo = document.getElementById('local');
 const connectionsDiv = document.getElementById('connections');
 
 let webSocket;
+let pingInterval;
+
+const clients = {};
+
 let localStream;
-const connections = {};
 
-function clearConnectionsDiv() {
-	log && log('CLEAR CONNECTIONS DIV');
+// -----
+// CONNECTION ELEMENTS
+// -----
 
-	endButton.setAttribute('disabled', '');
-	while (connectionsDiv.firstChild) {
-		connectionsDiv.lastChild.remove();
-	}
-	startButton.removeAttribute('disabled');
+function AddOfferToConnectionElements(elements, offer) {
+	elements.metaParagraph.append(`Offer: ${offer}`);
 }
 
-function makeConnectionDiv(clientId) {
-	log && log('MAKE CONNECTIONS DIV', clientId);
+function AddAnswerToConnectionElements(elements, answer) {
+	elements.metaParagraph.append(document.createElement('br'), `Answer: ${answer}`);
+}
 
-	const connectionDiv = connectionsDiv.appendChild(document.createElement('div'));
-	connectionDiv.id = `connection-${clientId}`;
-	const heading = connectionDiv.appendChild(document.createElement('h3'));
+function createConnectionElements(clientId) {
+	const main = connectionsDiv.appendChild(document.createElement('div'));
+
+	const heading = main.appendChild(document.createElement('h3'));
 	heading.append(`Connection ${clientId}`);
-	const video = connectionDiv.appendChild(document.createElement('video'));
+
+	const videoParagraph = main.appendChild(document.createElement('p'));
+	const video = videoParagraph.appendChild(document.createElement('video'));
 	video.setAttribute('playsinline', '');
 	video.setAttribute('autoplay', '');
 
-	return connectionDiv;
+	const metaParagraph = main.appendChild(document.createElement('p'));
+
+	return { main, video, metaParagraph };
 }
 
-function getConnectionDiv(clientId) {
-	log && log('GET CONNECTIONS DIV', clientId);
-
-	const connectionDiv = document.getElementById(`connection-${clientId}`);
-
-	return connectionDiv;
+function removeConnectionElements(elements) {
+	elements.main.remove();
 }
 
-function makeConnection(clientId) {
-	log && log('MAKE CONNECTIONS', clientId);
+// -----
+// CONNECTION
+// -----
 
+function createRtcPeerConnection(elements) {
 	const rtcPeerConnection = new RTCPeerConnection({});
 
 	rtcPeerConnection.addEventListener('icecandidate', (event) => {
-		log && log('RTC PEER CONNECTION', 'ON', 'ICECANDIDATE');
-
 		rtcPeerConnection.addIceCandidate(event.candidate);
 	});
 
 	rtcPeerConnection.addEventListener('track', (event) => {
-		log && log('RTC PEER CONNECTION', 'ON', 'TRACK');
-
-		const remoteVideo = document.querySelector(`#connection-${clientId} video`);
-		remoteVideo.srcObject = event.streams[0];
+		elements.video.srcObject = event.streams[0];
 	});
 
 	for (const track of localStream.getTracks()) {
 		rtcPeerConnection.addTrack(track, localStream);
 	}
 
-	connections[clientId] = { rtcPeerConnection };
-
 	return rtcPeerConnection;
 }
 
-function getConnection(clientId) {
-	log && log('GET CONNECTIONS', clientId);
-
-	return connections[clientId].rtcPeerConnection;
-}
-
-function removeConnection(clientId) {
-	log && log('REMOVE CONNECTIONS', clientId);
-
-	const rtcPeerConnection = connections[clientId].rtcPeerConnection;
-
-	delete connections[clientId];
-
-	return rtcPeerConnection;
-}
-
-// ---
-// START BUTTON ON CLICK
-// ---
+// -----
+// ADD EVENT LISTENER
+// -----
 
 startButton.addEventListener('click', () => {
-	log && log('START BUTTON', 'ON', 'CLICK');
+	console.log('START BUTTON ON CLICK');
 
 	startButton.setAttribute('disabled', '');
+
+	if (pingInterval) {
+		clearInterval(pingInterval);
+		pingInterval = null;
+	}
+
+	if (webSocket) {
+		webSocket.close();
+		webSocket = null;
+	}
+
+	if (localStream) {
+		for (const track of localStream.getTracks()) {
+			track.stop();
+		}
+		localStream = null;
+	}
 
 	navigator.mediaDevices.getUserMedia({ audio: false, video: true }).then((stream) => {
 		localStream = stream;
@@ -100,65 +97,63 @@ startButton.addEventListener('click', () => {
 		webSocket = new WebSocket('wss://jngo2-ws-server.herokuapp.com');
 
 		webSocket.onmessage = (event) => {
-			log && log('WEB SOCKET', 'ONMESSAGE', event.data);
+			console.log('WEB SOCKET ON MESSAGE');
 
 			try {
 				const message = JSON.parse(event.data);
-				const type = message.type;
+				console.log('WEB SOCKET ON MESSAGE - MESSAGE', message);
 
-				switch (type) {
-					case 'Add Client': {
-						log && log('WEB SOCKET', 'ONMESSAGE', 'Add Client');
+				switch (message.type) {
+					case 'Add': {
+						const elements = createConnectionElements(message.from);
 
-						const clientId = message.clientId;
-						const rtcPeerConnection = makeConnection(clientId);
-
+						const rtcPeerConnection = createRtcPeerConnection(elements);
 						rtcPeerConnection.createOffer({
 							offerToReceiveAudio: 1,
 							offerToReceiveVideo: 1
 						}).then((offer) => {
 							return rtcPeerConnection.setLocalDescription(offer).then(() => {
-								const connectionDiv = makeConnectionDiv(clientId);
-								const paragraph = connectionDiv.appendChild(document.createElement('p'));
-								paragraph.append(`Offer: ${offer}`);
+								AddOfferToConnectionElements(elements, offer);
 
-								const newMessage = JSON.stringify({
-									type: 'Set Offer',
-									targetClientId: clientId,
+								webSocket.send(JSON.stringify({
+									to: message.from,
+									type: 'Offer',
 									offer
-								});
-								log && log('WEB SOCKET', 'ONMESSAGE', 'newMessage', newMessage);
+								}));
 
-								webSocket.send(newMessage);
+								clients[message.from] = {
+									offer,
+									elements,
+									rtcPeerConnection
+								};
 							});
 						});
 
 						break;
 					}
 
-					case 'Set Offer': {
-						log && log('WEB SOCKET', 'ONMESSAGE', 'Set Offer');
+					case 'Offer': {
+						const elements = createConnectionElements(message.from);
+						AddOfferToConnectionElements(elements, message.offer);
 
-						const { sourceClientId, offer } = message;
-						const rtcPeerConnection = makeConnection(sourceClientId);
-
-						rtcPeerConnection.setRemoteDescription(offer).then(() => {
+						const rtcPeerConnection = createRtcPeerConnection(elements);
+						rtcPeerConnection.setRemoteDescription(message.offer).then(() => {
 							return rtcPeerConnection.createAnswer().then((answer) => {
 								return rtcPeerConnection.setLocalDescription(answer).then(() => {
-									const connectionDiv = makeConnectionDiv(sourceClientId);
-									const paragraph1 = connectionDiv.appendChild(document.createElement('p'));
-									paragraph1.append(`Offer: ${offer}`);
-									const paragraph2 = connectionDiv.appendChild(document.createElement('p'));
-									paragraph2.append(`Answer: ${answer}`);
+									AddAnswerToConnectionElements(elements, answer);
 
-									const newMessage = JSON.stringify({
-										type: 'Set Answer',
-										targetClientId: sourceClientId,
+									webSocket.send(JSON.stringify({
+										to: message.from,
+										type: 'Answer',
 										answer
-									});
-									log && log('WEB SOCKET', 'ONMESSAGE', 'newMessage', newMessage);
+									}));
 
-									webSocket.send(newMessage);
+									clients[message.from] = {
+										offer: message.offer,
+										answer,
+										elements,
+										rtcPeerConnection
+									};
 								});
 							});
 						});
@@ -166,63 +161,58 @@ startButton.addEventListener('click', () => {
 						break;
 					}
 
-					case 'Set Answer': {
-						log && log('WEB SOCKET', 'ONMESSAGE', 'Set Answer');
-
-						const { sourceClientId, answer } = message;
-
-						const rtcPeerConnection = getConnection(sourceClientId);
-						rtcPeerConnection.setRemoteDescription(answer).then(() => {
-							const connectionDiv = getConnectionDiv(sourceClientId);
-							const paragraph = connectionDiv.appendChild(document.createElement('p'));
-							paragraph.append(`Answer: ${answer}`);
-						});
-
+					case 'Answer': {
+						AddAnswerToConnectionElements(clients[message.from].elements, message.answer);
+						clients[message.from].rtcPeerConnection.setRemoteDescription(message.answer);
 						break;
 					}
 
-					case 'Remove Client': {
-						log && log('WEB SOCKET', 'ONMESSAGE', 'Remove Client');
-
-						const clientId = message.clientId;
-
-						if (connectionsDiv.childNodes.length === 1) {
-							clearConnectionsDiv();
-						} else {
-							const connectionDiv = getConnectionDiv(clientId);
-							connectionDiv && connectionDiv.remove();
-						}
-
-						const rtcPeerConnection = removeConnection(clientId);
-						rtcPeerConnection.close();
-
+					case 'Remove': {
+						removeConnectionElements(clients[message.from].elements);
+						clients[message.from].rtcPeerConnection.close();
+						delete clients[message.from];
 						break;
 					}
 				}
 			} catch (error) {
-				log && log('WEB SOCKET', 'ONMESSAGE', 'error', error);
+				// Do nothing
 			}
 		};
 
 		webSocket.onclose = () => {
-			log && log('WEB SOCKET', 'ONCLOSE');
+			console.log('WEB SOCKET ON CLOSE');
 
-			clearConnectionsDiv();
+			if (pingInterval) {
+				clearInterval(pingInterval);
+				pingInterval = null;
+			}
+
+			for (const key in clients) {
+				removeConnectionElements(clients[key].elements);
+				delete clients[key];
+			}
+
+			endButton.setAttribute('disabled', '');
+			startButton.removeAttribute('disabled');
 		};
 
 		endButton.removeAttribute('disabled');
+
+		pingInterval = setInterval(() => {
+			console.log('PING INTERVAL');
+
+			webSocket.send(JSON.stringify({
+				type: 'Ping'
+			}));
+		}, 10000);
 	});
 });
 
-// ---
-// END BUTTON ON CLICK
-// ---
-
 endButton.addEventListener('click', () => {
-	log && log('END BUTTON', 'ON', 'CLICK');
+	console.log('END BUTTON ON CLICK');
 
 	webSocket.close();
-	clearConnectionsDiv();
+	webSocket = null;
 
 	for (const track of localStream.getTracks()) {
 		track.stop();
