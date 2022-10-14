@@ -146,10 +146,10 @@ startButton.addEventListener('click', () => {
 					}
 
 					case 'Offer': {
-						const elements = createConnectionElements(message.from, message.from);
+						const elements = createConnectionElements(message.from);
 						elements.metaParagraph.append(`Offer: ${message.offer}`);
 
-						const rtcPeerConnection = createRtcPeerConnection(elements);
+						const rtcPeerConnection = createRtcPeerConnection(elements, message.from);
 						rtcPeerConnection.setRemoteDescription(message.offer).then(() => {
 							return rtcPeerConnection.createAnswer().then((answer) => {
 								return rtcPeerConnection.setLocalDescription(answer).then(() => {
