@@ -14,14 +14,6 @@ let localStream;
 // CONNECTION ELEMENTS
 // -----
 
-function AddOfferToConnectionElements(elements, offer) {
-	elements.metaParagraph.append(`Offer: ${offer}`);
-}
-
-function AddAnswerToConnectionElements(elements, answer) {
-	elements.metaParagraph.append(document.createElement('br'), `Answer: ${answer}`);
-}
-
 function createConnectionElements(clientId) {
 	const main = connectionsDiv.appendChild(document.createElement('div'));
 
@@ -134,7 +126,7 @@ startButton.addEventListener('click', () => {
 							offerToReceiveVideo: 1
 						}).then((offer) => {
 							return rtcPeerConnection.setLocalDescription(offer).then(() => {
-								AddOfferToConnectionElements(elements, offer);
+								elements.metaParagraph.append(`Offer: ${offer}`);
 
 								webSocket.send(JSON.stringify({
 									to: message.from,
@@ -155,13 +147,13 @@ startButton.addEventListener('click', () => {
 
 					case 'Offer': {
 						const elements = createConnectionElements(message.from);
-						AddOfferToConnectionElements(elements, message.offer);
+						elements.metaParagraph.append(`Offer: ${message.offer}`);
 
 						const rtcPeerConnection = createRtcPeerConnection(elements);
 						rtcPeerConnection.setRemoteDescription(message.offer).then(() => {
 							return rtcPeerConnection.createAnswer().then((answer) => {
 								return rtcPeerConnection.setLocalDescription(answer).then(() => {
-									AddAnswerToConnectionElements(elements, answer);
+									elements.metaParagraph.append(document.createElement('br'), `Answer: ${answer}`);
 
 									webSocket.send(JSON.stringify({
 										to: message.from,
@@ -183,12 +175,13 @@ startButton.addEventListener('click', () => {
 					}
 
 					case 'Answer': {
-						AddAnswerToConnectionElements(clients[message.from].elements, message.answer);
+						clients[message.from].elements.metaParagraph.append(document.createElement('br'), `Answer: ${message.answer}`);
 						clients[message.from].rtcPeerConnection.setRemoteDescription(message.answer);
 						break;
 					}
 
 					case 'Candidate': {
+						clients[message.from].elements.metaParagraph.append(document.createElement('br'), `Candidate: ${message.candidate}`);
 						clients[message.from].rtcPeerConnection.addIceCandidate(message.candidate);
 						break;
 					}
